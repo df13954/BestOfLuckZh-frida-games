@@ -1,0 +1,21 @@
+{
+  "name": "frida-agent-unity-zh",
+  "version": "1.0.0",
+  "description": "Example Frida agent written in TypeScript",
+  "private": true,
+  "main": "agent/index.ts",
+  "scripts": {
+    "prepare": "npm run build",
+    "build": "frida-compile agent/index.ts -o _agent.js -c",
+    "watch": "frida-compile agent/index.ts -o _agent.js -w"
+  },
+  "devDependencies": {
+    "@types/frida-gum": "^18.3.0",
+    "@types/node": "^18.11.18"
+  },
+  "dependencies": {
+    "frida-compile": "^10.2.5",
+    "frida-il2cpp-bridge": "^0.7.13",
+    "frida-java-bridge": "^6.2.3"
+  }
+}
