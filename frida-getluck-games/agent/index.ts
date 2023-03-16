@@ -19,8 +19,8 @@ function main() {
     //     }
     // })
 
-    CocosCreatorJS.start()
-    // Cocos2dxjs.start();
+    // CocosCreatorJS.start()
+    Cocos2dxjs.start();
 }
 
 /**

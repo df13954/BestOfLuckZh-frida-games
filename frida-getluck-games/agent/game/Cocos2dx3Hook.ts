@@ -97,8 +97,7 @@ export namespace Cocos2dx3Hook {
      * 基础的 hook 支持
      * 将代理支持绑定到 window 全局对象上。
      */
-    var hookContent = `
-var cc = cc || {};
+    var hookContent = `var cc = cc || {};
 (function () {
     console.log = console.log || log;
 
@@ -164,14 +163,26 @@ var cc = cc || {};
                 var args = [null].concat(argArray);
                 var tmpFun = (Function.prototype.bind.apply(target, args));
                 var tmp = new tmpFun();
-                var ret = window.proxyLeave("construct", arguments, tmp);
-                return ret;
+                try {
+                    var ret = window.proxyLeave("construct", arguments, tmp);
+                    return ret;
+                } catch (e) {
+                    log("[proxy log] error construct " + e.message)
+                    log("[proxy log] error apply stack" + e.stack)
+                }
+                return tmp;
             },
             apply: function (target, thisArg, argArray) {
                 window.proxyEntry("apply", arguments);
                 var tmp = target.apply(thisArg, argArray);
-                var ret = window.proxyLeave("apply", arguments, tmp);
-                return ret;
+                try {
+                    var ret = window.proxyLeave("apply", arguments, tmp);
+                    return ret;
+                } catch (e) {
+                    log("[proxy log] error apply " + e.message)
+                    log("[proxy log] error apply stack" + e.stack)
+                }
+                return tmp;
             },
             get: function (target, p, receiver) {
                 window.proxyEntry("get", arguments);
@@ -180,8 +191,14 @@ var cc = cc || {};
                     //避免后续 处理器 处理
                     return tmp;
                 }
-                var ret = window.proxyLeave("get", arguments, tmp);
-                return ret;
+                try {
+                    var ret = window.proxyLeave("get", arguments, tmp);
+                    return ret;
+                } catch (e) {
+                    log("[proxy log] error get " + e.message)
+                    log("[proxy log] error get stack" + e.stack)
+                }
+                return tmp;
             }
         });
         proxyObj["_raw"] = obj;
@@ -246,13 +263,16 @@ var cc = cc || {};
 
     var CClassExtendConstructHandler = `(function () {
     window.applyAfterHandlers.push(function (args, ret) {
-        if (ret && ("extend" in ret)) {
-            var isCCClass = ret.extend === cc.Class.extend;
-            if (isCCClass) {
-                //包装 ccclass 注意 这个是 extend 创建的类 只是包装类
-                ret = window.proxyWrapper(ret);
+        if(ret instanceof Object){
+            if (ret && ("extend" in ret)) {
+                var isCCClass = ret.extend === cc.Class.extend;
+                if (isCCClass) {
+                    //包装 ccclass 注意 这个是 extend 创建的类 只是包装类
+                    ret = window.proxyWrapper(ret);
+                }
             }
         }
+
         return ret;
     });
 })();`;
@@ -283,7 +303,8 @@ var cc = cc || {};
             .hookCCGame()
             .ccClassConstructHandler()
             // .consoleLogTail()
-            .proxyWindowPrototypeFunctionHandler("charManager","createAllChar")
+            .proxyWindowPrototypeFunctionHandler("charManager", "createAllChar")
+            .proxyWindowPrototypeFunctionHandler("tiledManager","judgeIsCheat")
             // .proxyWindowPrototypeFunctionHandler("Antiwear","setEncryptProperty")
             .custom(`(function () {
     //debug
@@ -299,51 +320,107 @@ var cc = cc || {};
             let windowClass = window[windowClassName]
             if (thisArg instanceof windowClass) {
                 try {
-                    if (thisArg.hasOwnProperty("allChars")) {
-                        let allChars = thisArg["allChars"];
-                        if (allChars && allChars.length > 0) {
-                            for (let allChar of allChars) {
-                                // log("[proxy log] find allChar" + window.toObjJson(allChar));
-                                if (allChar.hasOwnProperty("cMo")) {
-                                    let cMo = allChar["cMo"];
-                                    // log("[proxy log] Antiwear " + (cMo instanceof window["Antiwear"]));
-                                    // log("[proxy log] Antiwear setEncryptProperty:" + ("setEncryptProperty" in cMo));
-                                    // log("[proxy log] Antiwear defineEncryptGetterSetter:" + ("defineEncryptGetterSetter" in cMo));
-                                    let lastAttr  = cMo["lastAttr"];
-                                    let baseAttr  = cMo["baseAttr"];
-                                    
-                                    let hpNow = cMo.getEncryptProperty("hpNow");
-                                    let mpNow = cMo.getEncryptProperty("mpNow");
-                                    let hpMax = lastAttr.getEncryptProperty("hpMax");
-                                    let mpMax = lastAttr.getEncryptProperty("mpMax");
-                                    let attack = lastAttr.getEncryptProperty("attack");
-                                    let reHP = lastAttr.getEncryptProperty("reHP");
-                                    let reMP = lastAttr.getEncryptProperty("reMP");
-                                    
-                                    log("[proxy log] hpMax:" + hpMax)
-                                    log("[proxy log] mpMax:" + mpMax)
-                                    log("[proxy log] hpNow:" + hpNow)
-                                    log("[proxy log] mpNow:" + mpNow)
-                                    log("[proxy log] attack:" + attack)
-                                    log("[proxy log] reHP:" + reHP)
-                                    log("[proxy log] reMP:" + reMP)
-                                    
-                                    // cMo.setEncryptProperty("hpNow",hpNow );
-                                    // cMo.setEncryptProperty("mpNow",mpNow );
-                                    // lastAttr.setEncryptProperty("hpMax",hpMax );
-                                    // lastAttr.setEncryptProperty("mpMax",mpMax);
-                                    // baseAttr.setEncryptProperty("hpMax",hpMax );
-                                    // baseAttr.setEncryptProperty("mpMax",mpMax );
-                                    baseAttr.setEncryptProperty("attack",attack * 10 );
-                                    // baseAttr.setEncryptProperty("reHP",100 );
-                                    // baseAttr.setEncryptProperty("reMP",100 );
-                              
-                                    // cMo.baseAttr.setEncryptProperty("attack",9999);
-                                    // log("[proxy log] find cMo" + window.toObjJson(cMo));
+                    let isPrototypeFun = window.getRawObject(windowClass.prototype[prototypeFunName]) === window.getRawObject(target);
+                    if(isPrototypeFun){
+                        if (thisArg.hasOwnProperty("allChars")) {
+                            let allChars = thisArg["allChars"];
+                            window.cheatRestoreFuns = [];
+                            if (allChars && allChars.length > 0) {
+                                for (let allChar of allChars) {
+                                    // log("[proxy log] find allChar" + window.toObjJson(allChar));
+                                    if (allChar.hasOwnProperty("cMo")) {
+                                        let cMo = allChar["cMo"];
+                                        // log("[proxy log] Antiwear " + (cMo instanceof window["Antiwear"]));
+                                        // log("[proxy log] Antiwear setEncryptProperty:" + ("setEncryptProperty" in cMo));
+                                        // log("[proxy log] Antiwear defineEncryptGetterSetter:" + ("defineEncryptGetterSetter" in cMo));
+                                        let lastAttr  = cMo["lastAttr"];
+                                        let baseAttr  = cMo["baseAttr"];
+
+                                        let hpNow = cMo.getEncryptProperty("hpNow");
+                                        let mpNow = cMo.getEncryptProperty("mpNow");
+                                        let hpMax = lastAttr.getEncryptProperty("hpMax");
+                                        let mpMax = lastAttr.getEncryptProperty("mpMax");
+                                        let attack = lastAttr.getEncryptProperty("attack");
+                                        let reHP = lastAttr.getEncryptProperty("reHP");
+                                        let reMP = lastAttr.getEncryptProperty("reMP");
+
+                                        log("[proxy log] hpMax:" + hpMax)
+                                        log("[proxy log] mpMax:" + mpMax)
+                                        log("[proxy log] hpNow:" + hpNow)
+                                        log("[proxy log] mpNow:" + mpNow)
+                                        log("[proxy log] attack:" + attack)
+                                        log("[proxy log] reHP:" + reHP)
+                                        log("[proxy log] reMP:" + reMP)
+
+                                        cMo.setEncryptProperty("hpNow",hpNow * 10 );
+                                        cMo.setEncryptProperty("mpNow",mpNow  * 10);
+
+                                        baseAttr.setEncryptProperty("attack",attack * 10 );
+
+                                        lastAttr.setEncryptProperty("hpMax",hpMax * 10 );
+                                        lastAttr.setEncryptProperty("mpMax",mpMax * 10 );
+                                        lastAttr.setEncryptProperty("reHP",reHP * 10 );
+                                        lastAttr.setEncryptProperty("reMP",reMP * 10 );
+
+                                        let cheatRestoreFun = function (){
+                                            cMo.setEncryptProperty("hpNow",hpNow - 100);
+                                            cMo.setEncryptProperty("mpNow",mpNow - 100);
+
+                                            baseAttr.setEncryptProperty("attack",attack);
+
+                                            lastAttr.setEncryptProperty("hpMax",hpMax);
+                                            lastAttr.setEncryptProperty("mpMax",mpMax);
+                                            lastAttr.setEncryptProperty("reHP",reHP);
+                                            lastAttr.setEncryptProperty("reMP",reMP);
+                                            log("[proxy log] hpMax restore:" + hpMax)
+                                            log("[proxy log] mpMax restore:" + mpMax)
+                                            log("[proxy log] hpNow restore:" + hpNow)
+                                            log("[proxy log] mpNow restore:" + mpNow)
+                                            log("[proxy log] attack restore:" + attack)
+                                            log("[proxy log] reHP restore:" + reHP)
+                                            log("[proxy log] reMP restore:" + reMP)
+                                        };
+                                        // window.setTimeout(cheatRestoreFun, 10000);
+                                        window.cheatRestoreFuns.push(cheatRestoreFun);
+
+                                        // cMo.baseAttr.setEncryptProperty("attack",9999);
+                                        // log("[proxy log] find cMo" + window.toObjJson(cMo));
+
+                                    }
                                 }
                             }
-                        }
 
+                        }
+                    }
+
+                } catch (e) {
+                    log("[proxy log] error " + e.message)
+                    log("[proxy log] error stack" + e.stack)
+                }
+            }
+        }
+
+        return ret;
+    });
+})();`)
+            .custom(`(function () {
+    //debug
+    window.applyAfterHandlers.push(function (args, ret) {
+        let target = args[0];
+        let thisArg = args[1];
+        let argArray = args[2];
+
+        let windowClassName = "tiledManager";
+        let prototypeFunName = "judgeIsCheat";
+
+        if (window.hasOwnProperty(windowClassName)) {
+            let windowClass = window[windowClassName]
+            if (thisArg instanceof windowClass) {
+                try {
+                    let isPrototypeFun = window.getRawObject(windowClass.prototype[prototypeFunName]) === window.getRawObject(target);
+                    log("[proxy log]  tiledManager " + prototypeFunName + ":" + isPrototypeFun)
+                    if (isPrototypeFun) {
+                        log("[proxy log]  tiledManager " + prototypeFunName + " ret:" + ret);
                     }
                 } catch (e) {
                     log("[proxy log] error " + e.message)
@@ -353,6 +430,39 @@ var cc = cc || {};
         }
 
         return ret;
+    });
+})();`)
+            //anit_cheat
+            .custom(`(function () {
+    //debug
+    window.applyBeforeHandlers.push(function (args) {
+        let target = args[0];
+        let thisArg = args[1];
+        let argArray = args[2];
+
+        let windowClassName = "tiledManager";
+        let prototypeFunName = "judgeIsCheat";
+
+        if (window.hasOwnProperty(windowClassName)) {
+            let windowClass = window[windowClassName]
+            if (thisArg instanceof windowClass) {
+                try {
+                    let isPrototypeFun = window.getRawObject(windowClass.prototype[prototypeFunName]) === window.getRawObject(target);
+                    log("[proxy log]  tiledManager before: " + prototypeFunName + ":" + isPrototypeFun)
+                    if (isPrototypeFun) {
+                        if (window.cheatRestoreFuns && window.cheatRestoreFuns.length > 0) {
+                            for (let cheatRestoreFun of window.cheatRestoreFuns) {
+                                cheatRestoreFun.call();
+                            }
+                        }
+                    }
+                } catch (e) {
+                    log("[proxy log] error " + e.message)
+                    log("[proxy log] error stack" + e.stack)
+                }
+            }
+        }
+
     });
 })();`)
             // .logProxyApplyHandler()
@@ -390,7 +500,7 @@ var cc = cc || {};
             return this;
         }
 
-        consoleLogTail(){
+        consoleLogTail() {
             let script = `(function () {
                             window.applyAfterHandlers.push(function (args, ret) {
                                 if (!window.hasOwnProperty("backConsoleLog")) {
@@ -478,7 +588,7 @@ var cc = cc || {};
             return this;
         }
 
-        proxyWindowPrototypeFunctionHandler(windowProp: string,prototypeFun:string){
+        proxyWindowPrototypeFunctionHandler(windowProp: string, prototypeFun: string) {
             let script: string = `(function () {
                                         window.constructAfterHandlers.push(function (args, ret) {
                                             let proxyClass = "${windowProp}";
@@ -551,6 +661,7 @@ var cc = cc || {};
             this.hooks.push(script)
             return this;
         }
+
         logProxyApplyHandler(windowClassName = "") {
             let script: string = `
                 (function(){
