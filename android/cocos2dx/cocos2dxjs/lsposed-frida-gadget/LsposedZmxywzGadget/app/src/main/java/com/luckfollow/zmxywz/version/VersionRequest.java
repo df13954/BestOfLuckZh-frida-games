@@ -1,5 +1,8 @@
 package com.luckfollow.zmxywz.version;
 
+import static com.luckfollow.zmxywz.version.ScriptVersion.getVersionScriptFile;
+import static com.luckfollow.zmxywz.version.ScriptVersion.getVersionScriptPath;
+
 import android.app.AlertDialog;
 import android.app.AndroidAppHelper;
 import android.content.Context;
@@ -82,35 +85,6 @@ public class VersionRequest {
         });
     }
 
-    static ApplicationInfo getApplicationInfo() {
-        return AndroidAppHelper.currentApplicationInfo();
-    }
-
-    /**
-     * 版本脚本里存放的地方
-     * 默认是在数据目录
-     *
-     * @return
-     */
-    public static String getVersionScriptPath() {
-        String dataDir = getApplicationInfo().dataDir;
-        String scriptLocation = dataDir + "/" + "gadget-script";
-        return scriptLocation;
-    }
-
-    /**
-     * gadget 执行脚本的位置
-     * 当使用 script 和 script-directory 时有用
-     *
-     * @return
-     */
-    public static String getVersionScriptFile() {
-        String versionScriptPath = getVersionScriptPath();
-        if (!FileUtil.exist(versionScriptPath)) {
-            FileUtil.mkdir(versionScriptPath);
-        }
-        return versionScriptPath + "/" + "index.js";
-    }
 
     /**
      * 将 远程版本脚本下载到 脚本目录里

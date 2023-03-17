@@ -10,6 +10,8 @@ import android.widget.EditText;
 
 import com.luckfollow.zmxywz.utils.AppHelp;
 import com.luckfollow.zmxywz.utils.FridaGadgetUtil;
+import com.luckfollow.zmxywz.version.ScriptVersion;
+import com.luckfollow.zmxywz.version.VersionLocal;
 import com.luckfollow.zmxywz.version.VersionRequest;
 import com.luckfollow.zmxywz.version.entity.VersionEntity;
 
@@ -52,9 +54,17 @@ public class LsposedCocos2dxjsEntry implements IXposedHookLoadPackage {
      */
     private void gadgetInit(XC_LoadPackage.LoadPackageParam lpparam) {
         //获取要把脚本导出的位置 配置 gadget 的 script-directory 配置
-        String versionScriptPath = VersionRequest.getVersionScriptPath();
+        String versionScriptPath = ScriptVersion.getVersionScriptPath();
         Log.d(TAG, "versionScriptPath: " + versionScriptPath);
         FridaGadgetUtil.gadgetInitByLsposed(lpparam, "gadget", "gadget", FridaGadgetUtil.ensureScriptDirectory(versionScriptPath));
+    }
+
+    /**
+     * 加载 /assets/script 中脚本
+     */
+    public void localScriptLoad(XC_LoadPackage.LoadPackageParam lpparam){
+        final String moduleScriptName = "index.js";
+        VersionLocal.handleVersion(moduleScriptName);
     }
 
 
