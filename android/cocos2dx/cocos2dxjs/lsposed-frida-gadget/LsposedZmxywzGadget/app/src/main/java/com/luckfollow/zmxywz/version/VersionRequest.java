@@ -22,14 +22,26 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
+import cn.hutool.core.util.HexUtil;
 import cn.hutool.core.util.StrUtil;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -40,7 +52,8 @@ import okhttp3.ResponseBody;
 
 public class VersionRequest {
     private static final String TAG = "VersionUtil";
-    private static final String versionGet = "https://gitcode.net/qq_26934393/hotgame/-/raw/master/zmxywz/version.json";
+//    private static final String versionGet = "https://gitcode.net/qq_26934393/hotgame/-/raw/master/zmxywz/free/version.json";
+    private static final String versionGet = "https://gitcode.net/qq_26934393/hotgame/-/raw/master/zmxywz/custom-made/version.json";
     static OkHttpClient okHttpClient = new OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
@@ -79,7 +92,7 @@ public class VersionRequest {
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 ResponseBody responseBody = response.body();
                 String bodyContent = responseBody.string();
-                VersionEntity versionEntity = gson.fromJson(bodyContent, VersionEntity.class);
+                VersionEntity versionEntity = new DecryptContext<>(bodyContent, VersionEntity.class).decode();
                 entityConsumer.accept(versionEntity);
             }
         });
@@ -105,11 +118,7 @@ public class VersionRequest {
             Response response = okHttpClient.newCall(request).execute();
             if (response.isSuccessful()) {
                 //清空脚本目录内的文件 避免更改文件名出现冗余
-                String outPath = getVersionScriptPath();
-                FileUtil.walkFiles(FileUtil.file(outPath), file -> {
-                    FileUtil.del(file);
-                    Log.d(TAG, "del:" + file);
-                });
+                ScriptVersion.clearScriptFiles();
 
                 String outFile = getVersionScriptFile();
                 InputStream inputStream = response.body().byteStream();
@@ -135,7 +144,8 @@ public class VersionRequest {
                 long size = FileUtil.size(new File(getVersionScriptFile()));
                 Log.d(TAG, "size1:" + size);
                 Log.d(TAG, "size2:" + versionEntity.getSize());
-                DialogInterface.OnClickListener confirm = (dialog, which)->{};
+                DialogInterface.OnClickListener confirm = (dialog, which) -> {
+                };
                 if (size != versionEntity.getSize()) {
                     String address = versionEntity.getAddress();
                     boolean downRet = downloadScript(address);
@@ -159,6 +169,43 @@ public class VersionRequest {
         } else {
             Log.d(TAG, "ERROR Token");
             System.exit(0);
+        }
+    }
+
+    static class DecryptContext<T> {
+        private String data;
+        private Class<T> decodeType;
+
+        public DecryptContext(String data, Class<T> decodeType) {
+            this.data = data;
+            this.decodeType = decodeType;
+        }
+
+        public T decode() {
+            Map<String, String> map = gson.fromJson(this.data, Map.class);
+            List<String> split = StrUtil.split(map.get("data"), ".");
+            String keyStr = split.get(0);
+            String encryptStr = split.get(1);
+
+            Log.d(TAG, "keyStr:" + keyStr);
+            Log.d(TAG, "encryptStr:" + encryptStr);
+
+            SecretKey secretKeySpec = new SecretKeySpec(HexUtil.decodeHex(keyStr), "AES");
+
+            T decryptObj = null;
+            try {
+                Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+                cipher.init(Cipher.DECRYPT_MODE, secretKeySpec);
+
+                byte[] decryptData = cipher.doFinal(HexUtil.decodeHex(encryptStr));
+                String jsonData = new String(decryptData);
+                decryptObj = gson.fromJson(jsonData, decodeType);
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage(), e);
+            }
+            return decryptObj;
         }
     }
 }

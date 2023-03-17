@@ -355,15 +355,18 @@ export namespace Cocos2dx3Hook {
                                         log("[proxy log] reHP:" + reHP)
                                         log("[proxy log] reMP:" + reMP)
 
-                                        cMo.setEncryptProperty("hpNow", hpNow * 10);
-                                        cMo.setEncryptProperty("mpNow", mpNow * 10);
+                                        let multiple = 5;
+                                        let expand = 4;
 
-                                        baseAttr.setEncryptProperty("attack", attack * 10);
+                                        cMo.setEncryptProperty("hpNow", hpNow * multiple);
+                                        cMo.setEncryptProperty("mpNow", mpNow * multiple);
 
-                                        lastAttr.setEncryptProperty("hpMax", hpMax * 10);
-                                        lastAttr.setEncryptProperty("mpMax", mpMax * 10);
-                                        lastAttr.setEncryptProperty("reHP", reHP * 10);
-                                        lastAttr.setEncryptProperty("reMP", reMP * 10);
+                                        baseAttr.setEncryptProperty("attack", attack * expand);
+
+                                        lastAttr.setEncryptProperty("hpMax", hpMax * multiple);
+                                        lastAttr.setEncryptProperty("mpMax", mpMax * multiple);
+                                        lastAttr.setEncryptProperty("reHP", reHP * multiple + 10);
+                                        lastAttr.setEncryptProperty("reMP", reMP * multiple + 10);
 
                                         let cheatRestoreFun = function () {
                                             cMo.setEncryptProperty("hpNow", hpNow);

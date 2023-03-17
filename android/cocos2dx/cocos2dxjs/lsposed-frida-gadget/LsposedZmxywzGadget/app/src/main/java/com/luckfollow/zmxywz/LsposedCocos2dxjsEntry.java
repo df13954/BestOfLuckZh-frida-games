@@ -2,12 +2,14 @@ package com.luckfollow.zmxywz;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Application;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.EditText;
 
+import com.luckfollow.zmxywz.ui.VerityAssistView;
 import com.luckfollow.zmxywz.utils.AppHelp;
 import com.luckfollow.zmxywz.utils.FridaGadgetUtil;
 import com.luckfollow.zmxywz.version.ScriptVersion;
@@ -28,13 +30,13 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
  * 我们需要在此之前加载我们 libgadget.so
  */
 public class LsposedCocos2dxjsEntry implements IXposedHookLoadPackage {
-    private static final String TAG = "LsposedEntry";
+    private static final String TAG = "LsposedCocos2dxjsEntry";
     final String mainActivityClass = "org.cocos2dx.lib.Cocos2dxActivity";
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-//        final String matchPackage = "com.zmsy.zmxywz";
-        final String matchPackage = "com.example.practicegadget1";
+        final String matchPackage = "com.zmsy.zmxywz";
+//        final String matchPackage = "com.example.practicegadget1";
         Log.d(TAG, "lpparam.packageName:" + lpparam.packageName);
         if (lpparam.packageName.startsWith(matchPackage)) {
             gadgetInit(lpparam);
@@ -62,7 +64,7 @@ public class LsposedCocos2dxjsEntry implements IXposedHookLoadPackage {
     /**
      * 加载 /assets/script 中脚本
      */
-    public void localScriptLoad(XC_LoadPackage.LoadPackageParam lpparam){
+    public void localScriptLoad(XC_LoadPackage.LoadPackageParam lpparam) {
         final String moduleScriptName = "index.js";
         VersionLocal.handleVersion(moduleScriptName);
     }
@@ -76,12 +78,11 @@ public class LsposedCocos2dxjsEntry implements IXposedHookLoadPackage {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 Activity context = (Activity) param.thisObject;
-                // 创建一个 EditText 控件
-                final EditText editText = new EditText(context);
-
+                VerityAssistView verityAssistView = new VerityAssistView(new EditText(context));
                 VersionRequest.reqVersion((versionEntity -> {
-                    Log.d(TAG, "接收到的内容:" + versionEntity);
-                    AppHelp.mainLooperRun(() -> checkToken(editText, context, versionEntity));
+
+                    verityAssistView.assertSignature(context.getApplication(), versionEntity);
+                    AppHelp.mainLooperRun(() -> verityAssistView.checkToken(context, versionEntity));
                 }));
 
             }
@@ -93,18 +94,5 @@ public class LsposedCocos2dxjsEntry implements IXposedHookLoadPackage {
         });
     }
 
-    private void checkToken(EditText editText, Context context, VersionEntity versionEntity) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle("校验令牌");
-        builder.setMessage("请输入令牌：");
-        builder.setView(editText);
 
-        builder.setPositiveButton("确定", (dialog, which) -> {
-            // 在这里处理用户输入的内容
-            String content = editText.getText().toString();
-            VersionRequest.handleVersion(context, content, versionEntity);
-        });
-
-        builder.show();
-    }
 }

@@ -1,8 +1,12 @@
 package com.luckfollow.zmxywz.utils;
 
+import android.app.AndroidAppHelper;
 import android.app.Application;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -15,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.jar.JarFile;
@@ -24,6 +29,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.ArrayUtil;
+import cn.hutool.core.util.HexUtil;
 import cn.hutool.core.util.ReflectUtil;
 import cn.hutool.core.util.StrUtil;
 import de.robv.android.xposed.XposedHelpers;
@@ -134,7 +140,7 @@ public class AppHelp {
         return libraryPath.contains(firstAbi);
     }
 
-    public static boolean isSupportABIByLibraryPath(String libraryPath,ApplicationInfo applicationInfo) {
+    public static boolean isSupportABIByLibraryPath(String libraryPath, ApplicationInfo applicationInfo) {
         String app_abi = getAbiByLibDir(applicationInfo);
         return libraryPath.contains(app_abi);
     }
@@ -148,5 +154,23 @@ public class AppHelp {
     public static boolean mainLooperRun(Runnable runnable) {
         Handler handler = new Handler(Looper.getMainLooper());
         return handler.post(runnable);
+    }
+
+
+    public static String md5Signature(Application application) {
+
+        try {
+            PackageInfo packageInfo = application.getPackageManager().getPackageInfo(application.getPackageName(), PackageManager.GET_SIGNATURES);
+            Signature signature = ArrayUtil.get(packageInfo.signatures, 0);
+            byte[] signData = signature.toByteArray();
+
+            MessageDigest md5 = MessageDigest.getInstance("md5");
+            byte[] digest = md5.digest(signData);
+
+            return HexUtil.encodeHexStr(digest,false);
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage(), e);
+        }
+        return StrUtil.EMPTY;
     }
 }
