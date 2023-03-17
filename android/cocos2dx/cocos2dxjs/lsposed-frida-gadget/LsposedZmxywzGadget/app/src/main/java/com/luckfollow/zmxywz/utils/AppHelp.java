@@ -2,9 +2,11 @@ package com.luckfollow.zmxywz.utils;
 
 import android.app.Application;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.ParcelUuid;
 import android.util.Log;
 
 import java.io.BufferedOutputStream;
@@ -18,10 +20,12 @@ import java.util.List;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.ReflectUtil;
+import cn.hutool.core.util.StrUtil;
 import de.robv.android.xposed.XposedHelpers;
 
 /**
@@ -128,6 +132,17 @@ public class AppHelp {
         String[] supportedAbis = Build.SUPPORTED_ABIS;
         String firstAbi = ArrayUtil.get(supportedAbis, 0);
         return libraryPath.contains(firstAbi);
+    }
+
+    public static boolean isSupportABIByLibraryPath(String libraryPath,ApplicationInfo applicationInfo) {
+        String app_abi = getAbiByLibDir(applicationInfo);
+        return libraryPath.contains(app_abi);
+    }
+
+    public static String getAbiByLibDir(ApplicationInfo applicationInfo) {
+        String nativeLibraryDir = applicationInfo.nativeLibraryDir;
+        List<String> split = StrUtil.split(nativeLibraryDir, "/");
+        return CollUtil.getLast(split);
     }
 
     public static boolean mainLooperRun(Runnable runnable) {

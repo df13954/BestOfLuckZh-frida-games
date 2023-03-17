@@ -1,5 +1,6 @@
 package com.luckfollow.zmxywz.utils;
 
+import android.app.AndroidAppHelper;
 import android.os.Build;
 import android.util.Log;
 
@@ -15,6 +16,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.io.file.FileNameUtil;
 import cn.hutool.core.util.StrUtil;
+import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 /**
@@ -115,6 +117,7 @@ public class FridaGadgetUtil {
                                            String libraryName,
                                            String toDir,
                                            String gadgetConfig) {
+        //1.查找 当前模块中 libgadget so 路径
         List<String> currentPluginGadgetPaths = AppHelp.findLibPath(LsposedHelp.getPluginLibPaths(), libraryName);
         Log.d(TAG, "pluginGadgetPaths:" + currentPluginGadgetPaths);
 
@@ -122,10 +125,13 @@ public class FridaGadgetUtil {
         final String transferGadgetDir = dataDir + "/" + toDir;
         Log.d(TAG, "toAppPath:" + transferGadgetDir);
 
-        //[x86_64, x86, arm64-v8a, armeabi-v7a, armeabi]
-        Log.d(TAG, "supportABI:" + Arrays.toString(Build.SUPPORTED_ABIS));
+
+        String supportABI = AppHelp.getAbiByLibDir(lpparam.appInfo);
+        //2.选出与应用适配的abi 的gadget  [x86_64, x86, arm64-v8a, armeabi-v7a, armeabi]
+        Log.d(TAG, "supportABIs:" + Arrays.toString(Build.SUPPORTED_ABIS));
+        Log.d(TAG, "supportABI:" + supportABI);
         Optional<String> bestPluginGadget = currentPluginGadgetPaths.stream()
-                .filter(AppHelp::isSupportABIByLibraryPath)
+                .filter(libGadgePaths->AppHelp.isSupportABIByLibraryPath(libGadgePaths,lpparam.appInfo))
                 .findAny();
         String pluginGadgetPath;
         if (bestPluginGadget.isPresent()) {
@@ -135,8 +141,11 @@ public class FridaGadgetUtil {
         }
         if(StrUtil.isNotBlank(pluginGadgetPath)){
             Log.d(TAG, "selectPluginGadgetPath:" + pluginGadgetPath);
+            //3. 将适配 abi gadget 复制到应用目录下 并将 gadget-config 复制到相同的目录下。
             String appGadgetDir = FridaGadgetUtil.copyFridaGadget(pluginGadgetPath, transferGadgetDir, gadgetConfig);
             String gadgetSo = appGadgetDir + "/" + System.mapLibraryName(libraryName);
+
+            //4.加载gadget
             Log.d(TAG, "loadGadgetSo:" + gadgetSo);
             System.load(gadgetSo);
         }

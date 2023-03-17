@@ -305,6 +305,7 @@ export namespace Cocos2dx3Hook {
             // .consoleLogTail()
             .proxyWindowPrototypeFunctionHandler("charManager", "createAllChar")
             .proxyWindowPrototypeFunctionHandler("tiledManager","judgeIsCheat")
+            .proxyWindowObjectFunctionHandler("pomelo","newRequest")
             // .proxyWindowPrototypeFunctionHandler("Antiwear","setEncryptProperty")
             .custom(`(function () {
     //debug
@@ -321,10 +322,11 @@ export namespace Cocos2dx3Hook {
             if (thisArg instanceof windowClass) {
                 try {
                     let isPrototypeFun = window.getRawObject(windowClass.prototype[prototypeFunName]) === window.getRawObject(target);
-                    if(isPrototypeFun){
+                    if (isPrototypeFun) {
                         if (thisArg.hasOwnProperty("allChars")) {
                             let allChars = thisArg["allChars"];
                             window.cheatRestoreFuns = [];
+                            window.baseGetAttrHandles = [];
                             if (allChars && allChars.length > 0) {
                                 for (let allChar of allChars) {
                                     // log("[proxy log] find allChar" + window.toObjJson(allChar));
@@ -333,8 +335,9 @@ export namespace Cocos2dx3Hook {
                                         // log("[proxy log] Antiwear " + (cMo instanceof window["Antiwear"]));
                                         // log("[proxy log] Antiwear setEncryptProperty:" + ("setEncryptProperty" in cMo));
                                         // log("[proxy log] Antiwear defineEncryptGetterSetter:" + ("defineEncryptGetterSetter" in cMo));
-                                        let lastAttr  = cMo["lastAttr"];
-                                        let baseAttr  = cMo["baseAttr"];
+                                        let lastAttr = cMo["lastAttr"];
+                                        let baseAttr = cMo["baseAttr"];
+                                        cMo["baseAttr"] = window.proxyWrapper(baseAttr);
 
                                         let hpNow = cMo.getEncryptProperty("hpNow");
                                         let mpNow = cMo.getEncryptProperty("mpNow");
@@ -352,26 +355,26 @@ export namespace Cocos2dx3Hook {
                                         log("[proxy log] reHP:" + reHP)
                                         log("[proxy log] reMP:" + reMP)
 
-                                        cMo.setEncryptProperty("hpNow",hpNow * 10 );
-                                        cMo.setEncryptProperty("mpNow",mpNow  * 10);
+                                        cMo.setEncryptProperty("hpNow", hpNow * 10);
+                                        cMo.setEncryptProperty("mpNow", mpNow * 10);
 
-                                        baseAttr.setEncryptProperty("attack",attack * 10 );
+                                        baseAttr.setEncryptProperty("attack", attack * 10);
 
-                                        lastAttr.setEncryptProperty("hpMax",hpMax * 10 );
-                                        lastAttr.setEncryptProperty("mpMax",mpMax * 10 );
-                                        lastAttr.setEncryptProperty("reHP",reHP * 10 );
-                                        lastAttr.setEncryptProperty("reMP",reMP * 10 );
+                                        lastAttr.setEncryptProperty("hpMax", hpMax * 10);
+                                        lastAttr.setEncryptProperty("mpMax", mpMax * 10);
+                                        lastAttr.setEncryptProperty("reHP", reHP * 10);
+                                        lastAttr.setEncryptProperty("reMP", reMP * 10);
 
-                                        let cheatRestoreFun = function (){
-                                            cMo.setEncryptProperty("hpNow",hpNow - 100);
-                                            cMo.setEncryptProperty("mpNow",mpNow - 100);
+                                        let cheatRestoreFun = function () {
+                                            cMo.setEncryptProperty("hpNow", hpNow);
+                                            cMo.setEncryptProperty("mpNow", mpNow);
 
-                                            baseAttr.setEncryptProperty("attack",attack);
+                                            baseAttr.setEncryptProperty("attack", attack);
 
-                                            lastAttr.setEncryptProperty("hpMax",hpMax);
-                                            lastAttr.setEncryptProperty("mpMax",mpMax);
-                                            lastAttr.setEncryptProperty("reHP",reHP);
-                                            lastAttr.setEncryptProperty("reMP",reMP);
+                                            lastAttr.setEncryptProperty("hpMax", hpMax);
+                                            lastAttr.setEncryptProperty("mpMax", mpMax);
+                                            lastAttr.setEncryptProperty("reHP", reHP);
+                                            lastAttr.setEncryptProperty("reMP", reMP);
                                             log("[proxy log] hpMax restore:" + hpMax)
                                             log("[proxy log] mpMax restore:" + mpMax)
                                             log("[proxy log] hpNow restore:" + hpNow)
@@ -381,8 +384,24 @@ export namespace Cocos2dx3Hook {
                                             log("[proxy log] reMP restore:" + reMP)
                                         };
                                         // window.setTimeout(cheatRestoreFun, 10000);
+                                        //这个用于在 isCheat 中 还原
                                         window.cheatRestoreFuns.push(cheatRestoreFun);
+                                        //这个在 tiledManager.prototype.judgeGameOver 中还原
+                                        window.baseGetAttrHandles.push(function (target, p, receiver) {
+                                            let baseAttr1 = baseAttr === target;
 
+                                            if (baseAttr1) {
+                                                let locationStack = new Error().stack;
+                                                if (locationStack.indexOf("judgeGameOver") != -1) {
+                                                    log("[proxy log] judgeGameOver baseAttr1:" + baseAttr1);
+                                                    log("[proxy log] judgeGameOver baseAttr property:" + p);
+                                                    log("[proxy log] judgeGameOver baseAttr stack" + locationStack);
+                                                    if(p === "attack"){
+                                                        baseAttr.setEncryptProperty("attack", attack);
+                                                    }
+                                                }
+                                            }
+                                        });
                                         // cMo.baseAttr.setEncryptProperty("attack",9999);
                                         // log("[proxy log] find cMo" + window.toObjJson(cMo));
 
@@ -401,6 +420,20 @@ export namespace Cocos2dx3Hook {
         }
 
         return ret;
+    });
+})();`)
+            .custom(`(function () {
+    //debug
+    window.getBeforeHandlers.push(function (args) {
+        let target = args[0];
+        let p = args[1];
+        let receiver = args[2];
+
+        if (window.baseGetAttrHandles && window.baseGetAttrHandles.length > 0) {
+            for (let baseGetAttrHandle of window.baseGetAttrHandles) {
+                baseGetAttrHandle.call(null,target,p,receiver);
+            }
+        }
     });
 })();`)
             .custom(`(function () {
@@ -455,6 +488,42 @@ export namespace Cocos2dx3Hook {
                                 cheatRestoreFun.call();
                             }
                         }
+                    }
+                } catch (e) {
+                    log("[proxy log] error " + e.message)
+                    log("[proxy log] error stack" + e.stack)
+                }
+            }
+        }
+
+    });
+})();`)
+            .custom(`(function () {
+    //debug
+    window.applyBeforeHandlers.push(function (args) {
+        let target = args[0];
+        let thisArg = args[1];
+        let argArray = args[2];
+
+        let windowClassName = "pomelo";
+        let prototypeFunName = "newRequest";
+
+        if (window.hasOwnProperty(windowClassName)) {
+            let windowObject = window[windowClassName]
+            if (thisArg === windowObject) {
+                try {
+                    let newRequestFun = windowObject[prototypeFunName];
+                    let isNeedTarget = window.getRawObject(newRequestFun) === window.getRawObject(target);
+                    log("[proxy log]  " + windowClassName + " " + prototypeFunName + "():" + isNeedTarget)
+                    if (isNeedTarget) {
+                        let arg1 = argArray[0];
+                        let arg2 = argArray[1];
+                        let arg3 = argArray[2];
+                        let arg4 = argArray[3];
+                        log("[proxy log] newRequest arg1:" + arg1);
+                        log("[proxy log] newRequest arg2:" + window.toObjJson(arg2));
+                        log("[proxy log] newRequest arg3:" + arg3);
+                        log("[proxy log] newRequest arg4:" + arg4);
                     }
                 } catch (e) {
                     log("[proxy log] error " + e.message)
@@ -590,27 +659,57 @@ export namespace Cocos2dx3Hook {
 
         proxyWindowPrototypeFunctionHandler(windowProp: string, prototypeFun: string) {
             let script: string = `(function () {
-                                        window.constructAfterHandlers.push(function (args, ret) {
-                                            let proxyClass = "${windowProp}";
-                                            let prototypeFun = "${prototypeFun}";
-                                            try {
-                                                if (proxyClass in window) {
-                                                    if (prototypeFun in (window[proxyClass].prototype)) {
-                                                        let prototypeObj = window[proxyClass].prototype;
-                                                        if (!window.isWrapperProxy(prototypeObj[prototypeFun])) {
-                                                            log("[proxy log] proxy prototype: " + proxyClass + " function " + prototypeFun + "()")
-                                                            prototypeObj[prototypeFun] = window.proxyWrapper(prototypeObj[prototypeFun]);
-                                                        }
-                                                    }
-                                                }
-                                            } catch (e) {
-                                                log("[proxy log] error " + e.message)
-                                                log("[proxy log] error stack" + e.stack)
-                                            }
-                                            return ret;
-                                        });
-                                    })();
+    window.constructAfterHandlers.push(function (args, ret) {
+        let proxyClass = "${windowProp}";
+        let prototypeFun = "${prototypeFun}";
+        try {
+            if (proxyClass in window) {
+                if (window[proxyClass] != null) {
+                    if (prototypeFun in (window[proxyClass].prototype)) {
+                        let prototypeObj = window[proxyClass].prototype;
+                        if (!window.isWrapperProxy(prototypeObj[prototypeFun])) {
+                            log("[proxy log] proxy prototype: " + proxyClass + " function " + prototypeFun + "()")
+                            prototypeObj[prototypeFun] = window.proxyWrapper(prototypeObj[prototypeFun]);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            log("[proxy log] ${windowProp}  ${prototypeFun} error " + e.message)
+            log("[proxy log] ${windowProp} ${prototypeFun} error stack" + e.stack)
+        }
+        return ret;
+    });
+})();
             `
+            this.hooks.push(script)
+            return this;
+        }
+
+        proxyWindowObjectFunctionHandler(windowProp: string, propertyFunName: string) {
+            let script: string = `(function () {
+    window.constructAfterHandlers.push(function (args, ret) {
+        let proxyClass = "${windowProp}";
+        let propertyFunName = "${propertyFunName}";
+        try {
+            if (proxyClass in window) {
+                if (window[proxyClass] != null) {
+                    if (propertyFunName in (window[proxyClass])) {
+                        let propertyFun = window[proxyClass][propertyFunName];
+                        if (!window.isWrapperProxy(propertyFun)) {
+                            log("[proxy log] proxy object fun: " + proxyClass + " function " + propertyFunName + "()")
+                            window[proxyClass][propertyFunName] = window.proxyWrapper(propertyFun);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            log("[proxy log] ${windowProp}  ${propertyFunName} error " + e.message)
+            log("[proxy log] ${windowProp} ${propertyFunName} error stack" + e.stack)
+        }
+        return ret;
+    });
+})();`
             this.hooks.push(script)
             return this;
         }

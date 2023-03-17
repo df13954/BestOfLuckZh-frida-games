@@ -31,14 +31,27 @@ public class LsposedCocos2dxjsEntry implements IXposedHookLoadPackage {
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        final String matchPackage = "com.zmsy.zmxywz";
+//        final String matchPackage = "com.zmsy.zmxywz";
+        final String matchPackage = "com.example.practicegadget1";
+        Log.d(TAG, "lpparam.packageName:" + lpparam.packageName);
         if (lpparam.packageName.startsWith(matchPackage)) {
             gadgetInit(lpparam);
             cocos2dxjsActivityHandler(lpparam);
         }
     }
 
+    /**
+     * 1. gadget 初始化
+     * 通过 LspModuleClassLoader 模块类加载器 提取 当前模块的 apk 路径
+     * 在这个apk 路径中 包含我们libs 中的 libgadget.so
+     * 注意一点 需要配置 ndk abi 过滤 这个过滤在 build.gradle 里面
+     * 否则当前模块可能不会把gadget 打包进去
+     * 除了这个还需要配置 Jnilib 来源 把我们 libs 目录设置为 jni 目录
+     *
+     * @param lpparam
+     */
     private void gadgetInit(XC_LoadPackage.LoadPackageParam lpparam) {
+        //获取要把脚本导出的位置 配置 gadget 的 script-directory 配置
         String versionScriptPath = VersionRequest.getVersionScriptPath();
         Log.d(TAG, "versionScriptPath: " + versionScriptPath);
         FridaGadgetUtil.gadgetInitByLsposed(lpparam, "gadget", "gadget", FridaGadgetUtil.ensureScriptDirectory(versionScriptPath));
