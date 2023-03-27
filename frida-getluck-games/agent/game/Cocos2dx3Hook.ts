@@ -355,9 +355,9 @@ export namespace Cocos2dx3Hook {
                                         log("[proxy log] reHP:" + reHP)
                                         log("[proxy log] reMP:" + reMP)
 
-                                        let multiple = 5;
+                                        let multiple = 4;
                                         let expand = 4;
-
+                                        let v = "1";
                                         cMo.setEncryptProperty("hpNow", hpNow * multiple);
                                         cMo.setEncryptProperty("mpNow", mpNow * multiple);
 
@@ -365,8 +365,8 @@ export namespace Cocos2dx3Hook {
 
                                         lastAttr.setEncryptProperty("hpMax", hpMax * multiple);
                                         lastAttr.setEncryptProperty("mpMax", mpMax * multiple);
-                                        lastAttr.setEncryptProperty("reHP", reHP * multiple + 10);
-                                        lastAttr.setEncryptProperty("reMP", reMP * multiple + 10);
+                                        // lastAttr.setEncryptProperty("reHP", reHP * multiple + 10);
+                                        // lastAttr.setEncryptProperty("reMP", reMP * multiple + 10);
 
                                         let cheatRestoreFun = function () {
                                             cMo.setEncryptProperty("hpNow", hpNow);
@@ -457,6 +457,7 @@ export namespace Cocos2dx3Hook {
                     log("[proxy log]  tiledManager " + prototypeFunName + ":" + isPrototypeFun)
                     if (isPrototypeFun) {
                         log("[proxy log]  tiledManager " + prototypeFunName + " ret:" + ret);
+                        return false;
                     }
                 } catch (e) {
                     log("[proxy log] error " + e.message)
