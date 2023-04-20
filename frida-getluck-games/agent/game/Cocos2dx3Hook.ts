@@ -305,31 +305,38 @@ export namespace Cocos2dx3Hook {
             // .consoleLogTail()
             .proxyWindowPrototypeFunctionHandler("charManager", "createAllChar")
             .proxyWindowPrototypeFunctionHandler("tiledManager","judgeIsCheat")
+            .proxyWindowPrototypeFunctionHandler("charManager","getEntity")
             .proxyWindowObjectFunctionHandler("pomelo","newRequest")
             // .proxyWindowPrototypeFunctionHandler("Antiwear","setEncryptProperty")
-            .custom(`(function () {
-    //debug
+            .custom(`
+          (function () {
+    //debug getEntity 后属性增强
     window.applyAfterHandlers.push(function (args, ret) {
         let target = args[0];
         let thisArg = args[1];
         let argArray = args[2];
 
         let windowClassName = "charManager";
-        let prototypeFunName = "createAllChar";
-
+        let prototypeFunName = "getEntity";
         if (window.hasOwnProperty(windowClassName)) {
             let windowClass = window[windowClassName]
             if (thisArg instanceof windowClass) {
                 try {
                     let isPrototypeFun = window.getRawObject(windowClass.prototype[prototypeFunName]) === window.getRawObject(target);
-                    if (isPrototypeFun) {
-                        if (thisArg.hasOwnProperty("allChars")) {
-                            let allChars = thisArg["allChars"];
-                            window.cheatRestoreFuns = [];
-                            window.baseGetAttrHandles = [];
-                            if (allChars && allChars.length > 0) {
+                    if (isPrototypeFun && thisArg.hasOwnProperty("allChars")) {
+                        let allChars = thisArg["allChars"];
+                        // log("[proxy log] addAttributeByAll allChars:" + window.toObjJson(allChars));
+                        if (allChars.length > 0) {
+                            if(!window.hasOwnProperty("charManagerInstance") || window["charManagerInstance"]!==thisArg){
+                                log("[proxy log] getEntity isPrototypeFun:" + isPrototypeFun);
+
+                                //对于对一次 allChars == 0 那么进行初始化
+                                //用于还原数据
+                                window.cheatRestoreFuns = [];
+                                //对于特殊情况的 如 baseAttribute attack 的还原
+                                window.baseGetAttrHandles = [];
+                                window["charManagerInstance"] = thisArg;
                                 for (let allChar of allChars) {
-                                    // log("[proxy log] find allChar" + window.toObjJson(allChar));
                                     if (allChar.hasOwnProperty("cMo")) {
                                         let cMo = allChar["cMo"];
                                         // log("[proxy log] Antiwear " + (cMo instanceof window["Antiwear"]));
@@ -357,7 +364,7 @@ export namespace Cocos2dx3Hook {
 
                                         let multiple = 4;
                                         let expand = 4;
-                                        let v = "1";
+
                                         cMo.setEncryptProperty("hpNow", hpNow * multiple);
                                         cMo.setEncryptProperty("mpNow", mpNow * multiple);
 
@@ -365,8 +372,8 @@ export namespace Cocos2dx3Hook {
 
                                         lastAttr.setEncryptProperty("hpMax", hpMax * multiple);
                                         lastAttr.setEncryptProperty("mpMax", mpMax * multiple);
-                                        // lastAttr.setEncryptProperty("reHP", reHP * multiple + 10);
-                                        // lastAttr.setEncryptProperty("reMP", reMP * multiple + 10);
+                                        // lastAttr.setEncryptProperty("reHP", reHP * multiple + 100);
+                                        // lastAttr.setEncryptProperty("reMP", reMP * multiple + 100);
 
                                         let cheatRestoreFun = function () {
                                             cMo.setEncryptProperty("hpNow", hpNow);
@@ -399,7 +406,7 @@ export namespace Cocos2dx3Hook {
                                                     log("[proxy log] judgeGameOver baseAttr1:" + baseAttr1);
                                                     log("[proxy log] judgeGameOver baseAttr property:" + p);
                                                     log("[proxy log] judgeGameOver baseAttr stack" + locationStack);
-                                                    if(p === "attack"){
+                                                    if (p === "attack") {
                                                         baseAttr.setEncryptProperty("attack", attack);
                                                     }
                                                 }
@@ -411,20 +418,18 @@ export namespace Cocos2dx3Hook {
                                     }
                                 }
                             }
-
                         }
                     }
-
                 } catch (e) {
                     log("[proxy log] error " + e.message)
                     log("[proxy log] error stack" + e.stack)
                 }
             }
         }
-
         return ret;
     });
-})();`)
+})();
+            `)
             .custom(`(function () {
     //debug
     window.getBeforeHandlers.push(function (args) {
@@ -502,42 +507,7 @@ export namespace Cocos2dx3Hook {
 
     });
 })();`)
-            .custom(`(function () {
-    //debug
-    window.applyBeforeHandlers.push(function (args) {
-        let target = args[0];
-        let thisArg = args[1];
-        let argArray = args[2];
 
-        let windowClassName = "pomelo";
-        let prototypeFunName = "newRequest";
-
-        if (window.hasOwnProperty(windowClassName)) {
-            let windowObject = window[windowClassName]
-            if (thisArg === windowObject) {
-                try {
-                    let newRequestFun = windowObject[prototypeFunName];
-                    let isNeedTarget = window.getRawObject(newRequestFun) === window.getRawObject(target);
-                    log("[proxy log]  " + windowClassName + " " + prototypeFunName + "():" + isNeedTarget)
-                    if (isNeedTarget) {
-                        let arg1 = argArray[0];
-                        let arg2 = argArray[1];
-                        let arg3 = argArray[2];
-                        let arg4 = argArray[3];
-                        log("[proxy log] newRequest arg1:" + arg1);
-                        log("[proxy log] newRequest arg2:" + window.toObjJson(arg2));
-                        log("[proxy log] newRequest arg3:" + arg3);
-                        log("[proxy log] newRequest arg4:" + arg4);
-                    }
-                } catch (e) {
-                    log("[proxy log] error " + e.message)
-                    log("[proxy log] error stack" + e.stack)
-                }
-            }
-        }
-
-    });
-})();`)
             // .logProxyApplyHandler()
             // .proxyWindowClassHandler("entityManager")
             // .proxyWindowClassHandler("characterEntity")
@@ -661,6 +631,34 @@ export namespace Cocos2dx3Hook {
             return this;
         }
 
+        proxyWindowObjectFunctionHandler(windowProp: string, propertyFunName: string) {
+            let script: string = `(function () {
+    window.constructAfterHandlers.push(function (args, ret) {
+        let proxyClass = "${windowProp}";
+        let propertyFunName = "${propertyFunName}";
+        try {
+            if (proxyClass in window) {
+                if (window[proxyClass] != null) {
+                    if (propertyFunName in (window[proxyClass])) {
+                        let propertyFun = window[proxyClass][propertyFunName];
+                        if (!window.isWrapperProxy(propertyFun)) {
+                            log("[proxy log] proxy object fun: " + proxyClass + " function " + propertyFunName + "()")
+                            window[proxyClass][propertyFunName] = window.proxyWrapper(propertyFun);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            log("[proxy log] ${windowProp}  ${propertyFunName} error " + e.message)
+            log("[proxy log] ${windowProp} ${propertyFunName} error stack" + e.stack)
+        }
+        return ret;
+    });
+})();`
+            this.hooks.push(script)
+            return this;
+        }
+
         proxyWindowPrototypeFunctionHandler(windowProp: string, prototypeFun: string) {
             let script: string = `(function () {
     window.constructAfterHandlers.push(function (args, ret) {
@@ -686,34 +684,6 @@ export namespace Cocos2dx3Hook {
     });
 })();
             `
-            this.hooks.push(script)
-            return this;
-        }
-
-        proxyWindowObjectFunctionHandler(windowProp: string, propertyFunName: string) {
-            let script: string = `(function () {
-    window.constructAfterHandlers.push(function (args, ret) {
-        let proxyClass = "${windowProp}";
-        let propertyFunName = "${propertyFunName}";
-        try {
-            if (proxyClass in window) {
-                if (window[proxyClass] != null) {
-                    if (propertyFunName in (window[proxyClass])) {
-                        let propertyFun = window[proxyClass][propertyFunName];
-                        if (!window.isWrapperProxy(propertyFun)) {
-                            log("[proxy log] proxy object fun: " + proxyClass + " function " + propertyFunName + "()")
-                            window[proxyClass][propertyFunName] = window.proxyWrapper(propertyFun);
-                        }
-                    }
-                }
-            }
-        } catch (e) {
-            log("[proxy log] ${windowProp}  ${propertyFunName} error " + e.message)
-            log("[proxy log] ${windowProp} ${propertyFunName} error stack" + e.stack)
-        }
-        return ret;
-    });
-})();`
             this.hooks.push(script)
             return this;
         }

@@ -4,6 +4,7 @@ import {DebugUtil} from "./game/util/DebugUtil";
 import whenSoOpen = DebugUtil.whenSoOpen;
 import {CocosCreatorJS} from "./game/CocosCreatorJS";
 import {Cocos2dxjs} from "./game/Cocos2dxjs";
+import {FridaAnti} from "./anti/FridaAnti";
 
 
 function main() {
@@ -19,8 +20,9 @@ function main() {
     //     }
     // })
 
+    FridaAnti.start();
     // CocosCreatorJS.start()
-    Cocos2dxjs.start();
+    // Cocos2dxjs.start();
 }
 
 /**
