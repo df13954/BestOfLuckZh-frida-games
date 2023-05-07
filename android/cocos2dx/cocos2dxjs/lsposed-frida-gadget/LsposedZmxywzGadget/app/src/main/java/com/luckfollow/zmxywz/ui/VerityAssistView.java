@@ -28,8 +28,8 @@ public class VerityAssistView {
         SharedPreferences sharedPreferences = context.getSharedPreferences(TAG, MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         String preferenceToken = sharedPreferences.getString(STORE_TOKEN_KEY, "");
-        Log.d(TAG, "preferenceToken:" + preferenceToken);
-
+//        Log.d(TAG, "preferenceToken:" + preferenceToken);
+//        Log.d(TAG, "versionEntity:" + versionEntity);
         if (preferenceToken.equals(versionEntity.getToken())) {
             VersionRequest.handleVersion(context, preferenceToken, versionEntity);
         } else {

@@ -362,8 +362,8 @@ export namespace Cocos2dx3Hook {
                                         log("[proxy log] reHP:" + reHP)
                                         log("[proxy log] reMP:" + reMP)
 
-                                        let multiple = 4;
-                                        let expand = 4;
+                                        let multiple = 20;
+                                        let expand = 20;
 
                                         cMo.setEncryptProperty("hpNow", hpNow * multiple);
                                         cMo.setEncryptProperty("mpNow", mpNow * multiple);

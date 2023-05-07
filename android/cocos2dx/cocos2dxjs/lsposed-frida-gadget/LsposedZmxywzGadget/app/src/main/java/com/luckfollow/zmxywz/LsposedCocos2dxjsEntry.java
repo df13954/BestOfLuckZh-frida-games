@@ -32,10 +32,10 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public class LsposedCocos2dxjsEntry implements IXposedHookLoadPackage {
     private static final String TAG = "LsposedCocos2dxjsEntry";
     final String mainActivityClass = "org.cocos2dx.lib.Cocos2dxActivity";
+    final String matchPackage = "com.zmsy.zmxywz";
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        final String matchPackage = "com.zmsy.zmxywz";
 //        final String matchPackage = "com.example.practicegadget1";
         Log.d(TAG, "lpparam.packageName:" + lpparam.packageName);
         if (lpparam.packageName.startsWith(matchPackage)) {
@@ -81,7 +81,7 @@ public class LsposedCocos2dxjsEntry implements IXposedHookLoadPackage {
                 VerityAssistView verityAssistView = new VerityAssistView(new EditText(context));
                 VersionRequest.reqVersion((versionEntity -> {
 
-                    verityAssistView.assertSignature(context.getApplication(), versionEntity);
+//                    verityAssistView.assertSignature(context.getApplication(), versionEntity);
                     AppHelp.mainLooperRun(() -> verityAssistView.checkToken(context, versionEntity));
                 }));
 

@@ -6,11 +6,12 @@
  *
  */
 import {DebugUtil} from "../game/util/DebugUtil";
+import {NativeUtil} from "../basic/NativeUtil";
 
 export namespace FridaAnti {
     import LOGE = DebugUtil.LOGE;
     import LOGD = DebugUtil.LOGD;
-    const anti_features: string[] = ["frida","/tmp"];
+    const anti_features: string[] = ["frida", "/tmp"];
 
     function hasAnti(content: string): boolean {
         let lowerContent = content.toLowerCase();
@@ -63,7 +64,7 @@ export namespace FridaAnti {
         // anti_kill();
         // anti_read();
 
-        anti_read();
+        // anti_read();
     }
 
 
@@ -73,8 +74,8 @@ export namespace FridaAnti {
      * @private
      */
     function hook_openat() {
-        const openatPtr: NativePointer = Module.findExportByName('libc.so', "openat")!;
-        Interceptor.attach(openatPtr, {
+        let openatPtr: NativePointer | null = NativeUtil.open_io.find_real_openat();
+        Interceptor.attach(openatPtr!, {
             onEnter: function (args) {
                 // let dirfd: number = args[0].readInt();
                 let pathname = args[1].readCString();
@@ -90,27 +91,20 @@ export namespace FridaAnti {
         })
     }
 
-    /**
-     * open 函数 也是底层内核函数
-     * 与 openat 不同 他只能绝对地址 不能基于 dirfd 进行相对目录
-     *  fopen 一般底层会调用 这个
-     *  因为fopen是个跨平台的 我虽然没有看源码 但经过测试貌似都会走 open 函数
-     * @private
-     */
-    function hook_open() {
-        const openatPtr: NativePointer = Module.findExportByName('libc.so', "open")!;
-        Interceptor.attach(openatPtr, {
-            onEnter: function (args) {
-                let pathname = args[0].readCString();
-                // let flags = args[1].readInt();
-                // let mode = args[2].readInt();
-                DebugUtil.logL(`\n${DebugUtil.getLine(16)}  anti frida [open]  ${DebugUtil.getLine(16)}`)
-                DebugUtil.LOGW("\n[open] args1:" + pathname);
-                // DebugUtil.LOGW("\n[open] args2:" + flags);
-                // DebugUtil.LOGW("\n[open] args3:" + mode);
-                DebugUtil.logL(`\n${DebugUtil.getLine(16)}${DebugUtil.getLine(16)}`)
-            }
-        })
+
+    function maps_handle(pathnamestr: string, openat_fun: NativeFunction<number, [number, NativePointer, number]>) {
+        DebugUtil.LOGD("anti_maps:" + pathnamestr);
+        return -1;
+    }
+
+    function thread_handle(pathnamestr: string, openat_fun: NativeFunction<number, [number, NativePointer, number]>) {
+        DebugUtil.LOGD("anti_thread:" + pathnamestr);
+        return -1;
+    }
+
+    function fd_handle(pathnamestr: string, openat_fun: NativeFunction<number, [number, NativePointer, number]>) {
+        DebugUtil.LOGD("anti_fd:" + pathnamestr);
+        return -1;
     }
 
     /**
@@ -120,103 +114,22 @@ export namespace FridaAnti {
      */
     function anti_open() {
         //prepared fun
-        const openPtr: NativePointer = Module.findExportByName("libc.so", "open")!;
-        const openFun = new NativeFunction(openPtr, "int", ["pointer", "int"]);
-        const openatPtr: NativePointer = Module.findExportByName("libc.so", "openat")!;
-        const openatFun = new NativeFunction(openatPtr, "int", ["int", "pointer", "int"]);
-        const creatPtr: NativePointer = Module.findExportByName("libc.so", "creat")!;
-        const creat = new NativeFunction(openatPtr, "int", ["pointer", "int"]);
-        const closePtr: NativePointer = Module.findExportByName("libc.so", "close")!;
-        const close = new NativeFunction(openatPtr, "int", ["int"]);
-        const _O_CREAT: number = 0x0100 | 0x0001 | 0x0200;
-        const maps_path = "/proc/self/maps";
+        let openatPtr: NativePointer | null = NativeUtil.open_io.find_real_openat();
+        let openat_fun = NativeUtil.open_io.openat_fun(openatPtr!);
 
-        function processed_maps(maps_path: string) {
-            const tmp_maps_path = "/data/local/tmp/maps";
-
-            //首先创建一个临时 maps 用于替换 读取 /proc/self/maps 的文件
-            let maps_file = new File(maps_path, "rw");
-            try {
-                let maps: string = maps_file.readText();
-                DebugUtil.LOGD("maps:" + maps);
-
-                let processContent = "";
-                maps.split("\n").forEach(line => {
-                    if (!hasAnti(line)) {
-                        processContent += line + "\n";
-                    }
-                })
-
-                DebugUtil.LOGD("maps after:" + processContent);
-                let open_fd = creat(Memory.allocUtf8String(tmp_maps_path), 755);
-                DebugUtil.LOGD("open_fd:" + open_fd);
-                if (open_fd != -1) {
-                    close(open_fd);
-                    let processed_maps_file = new File(tmp_maps_path, "rw");
-                    processed_maps_file.write(processContent);
-                    processed_maps_file.close();
-                    return tmp_maps_path;
+        Interceptor.replace(openatPtr!, new NativeCallback(function (fd, pathname, flags) {
+            const pathnamestr = pathname.readCString();
+            if (pathnamestr != null) {
+                if (pathnamestr.indexOf("proc") != -1) {
+                    if (pathnamestr.indexOf("maps") > 0) return maps_handle(pathnamestr, openat_fun);
+                    if (pathnamestr.indexOf("task") > 0) return thread_handle(pathnamestr, openat_fun);
+                    if (pathnamestr.indexOf("fd") > 0) return fd_handle(pathnamestr, openat_fun);
                 }
-
-            } finally {
-                maps_file.close();
             }
-            return maps_path
-        }
 
-        const tmp_maps_path = processed_maps(maps_path);
-        // const tmp_maps_path = "/data/local/tmp/maps";
-        // let processed_maps_file = new File(tmp_maps_path, "rw");
-        // DebugUtil.LOGD("processed_maps_file str:"+processed_maps_file.readText())
-        // processed_maps_file.close();
+            return openat_fun(fd, pathname, flags);
 
-        // intercept open
-        Interceptor.replace(openPtr, new NativeCallback(function (pathname, flags) {
-            let pathname_str = pathname.readCString()!;
-            LOGD("anti forward open for:" + pathname_str);
-            if (pathname_str.indexOf("maps") !== -1 && pathname_str.indexOf("proc") !== -1) {
-                // const tmp_maps_path = processed_maps(pathname_str);
-                // LOGD("anti forward open for:" + pathname_str + " to:" + tmp_maps_path);
-                // let maps_path = Memory.allocUtf8String(tmp_maps_path);
-                // return openFun(maps_path, flags);
-                // pthread_exit();
-                return -1;
-            }
-            // if (pathname_str.indexOf("status") !== -1 && pathname_str.indexOf("proc") !== -1) {
-            //     pthread_exit();
-            //     return -1;
-            // }
-            // if (pathname_str.indexOf("stat") !== -1 && pathname_str.indexOf("proc") !== -1) {
-            //     pthread_exit();
-            //     return -1;
-            // }
-            return openFun(pathname, flags);
-        }, "int", ["pointer", "int"]));
-
-        // intercept openat
-        Interceptor.replace(openatPtr, new NativeCallback(function (dirfd, pathname, flags) {
-            let pathname_str = pathname.readCString()!;
-            LOGD("anti forward openat for:" + pathname_str);
-
-            if (pathname_str.indexOf("maps") !== -1 && pathname_str.indexOf("proc") !== -1) {
-                // const tmp_maps_path = processed_maps(pathname_str);
-                // LOGD("anti forward openat for:" + pathname_str + " to:" + tmp_maps_path);
-                // let maps_path = Memory.allocUtf8String(tmp_maps_path);
-                // return openatFun(dirfd, maps_path, flags);
-                // pthread_exit();
-                return -1;
-            }
-            // if (pathname_str.indexOf("status") !== -1 && pathname_str.indexOf("proc") !== -1) {
-            //     pthread_exit();
-            //     return -1;
-            // }
-            //  if (pathname_str.indexOf("stat") !== -1 && pathname_str.indexOf("proc") !== -1) {
-            //     pthread_exit();
-            //     return -1;
-            // }
-            return openatFun(dirfd, pathname, flags);
         }, "int", ["int", "pointer", "int"]));
-
     }
 
 
@@ -236,6 +149,8 @@ export namespace FridaAnti {
                         DebugUtil.LOGW("\n [strcmp] args1:" + s1);
                         DebugUtil.LOGW("\n [strcmp] args2:" + s2);
                         DebugUtil.logL(`\n${DebugUtil.getLine(16)}${DebugUtil.getLine(16)}`)
+                        NativeUtil.pthread.pthread_exit();
+                        // Thread.sleep(99999);
                     }
                 } catch (e) {
                     //可能参数被释放 或者没有权限访问会出现错误
@@ -261,6 +176,7 @@ export namespace FridaAnti {
                         DebugUtil.LOGW("\n [strncmp] args2:" + s2);
                         DebugUtil.LOGW("\n [strncmp] args3:" + n);
                         DebugUtil.logL(`\n${DebugUtil.getLine(16)}${DebugUtil.getLine(16)}`)
+                        Thread.sleep(99999);
                     }
                 } catch (e) {
                     //可能参数被释放 或者没有权限访问会出现错误
@@ -284,6 +200,7 @@ export namespace FridaAnti {
                         DebugUtil.LOGW("\n [strcasecmp] args1:" + s1);
                         DebugUtil.LOGW("\n [strcasecmp] args2:" + s2);
                         DebugUtil.logL(`\n${DebugUtil.getLine(16)}${DebugUtil.getLine(16)}`)
+                        Thread.sleep(99999);
                     }
                 } catch (e) {
                     //可能参数被释放 或者没有权限访问会出现错误
@@ -292,11 +209,6 @@ export namespace FridaAnti {
         })
     }
 
-    function pthread_exit() {
-        let pthread_exitPtr: NativePointer = Module.findExportByName(null, "pthread_exit")!;
-        let pthread_exitFun = new NativeFunction(pthread_exitPtr, "void", ["pointer"]);
-        pthread_exitFun(ptr(0));
-    }
 
     function hook_strstr_and_anti() {
         const strcmpPtr: NativePointer = Module.findExportByName(null, "strstr")!;
@@ -314,9 +226,11 @@ export namespace FridaAnti {
                         DebugUtil.logL(`\n${DebugUtil.getLine(16)}  anti frida [strstr]  ${DebugUtil.getLine(16)}`)
                         DebugUtil.LOGW("\n [strstr] args1:" + haystack);
                         DebugUtil.LOGW("\n [strstr] args2:" + needle);
+                        // DebugUtil.PrintStackTraceN(this.context);
                         DebugUtil.logL(`\n${DebugUtil.getLine(16)}${DebugUtil.getLine(16)}`)
                         //终止这个检测线程
-                        pthread_exit();
+                        NativeUtil.pthread.pthread_exit();
+                        // Thread.sleep(99999);
                     }
                 } catch (e) {
                     //可能参数被释放 或者没有权限访问会出现错误

@@ -45,9 +45,8 @@ import okhttp3.ResponseBody;
 
 public class VersionRequest {
     private static final String TAG = "VersionUtil";
-//    private static final String versionGet = "https://gitcode.net/qq_26934393/hotgame/-/raw/master/zmxywz/free/version.json";
-//    private static final String versionGet = "https://gitcode.net/qq_26934393/hotgame/-/raw/master/zmws/custom-made/version-zmws.json";
-    private static final String versionGet = "https://gitcode.net/qq_26934393/hotgame/-/raw/master/zmws/free/version-zmws.json?inline=false";
+//    private static final String versionGet = "https://gitlab.com/zhanghecn/hotgame/-/raw/main/zmws/free/version-zmws.json";
+    private static final String versionGet = "https://gitlab.com/zhanghecn/hotgame/-/raw/main/zmws/custom-made/version-zmws.json";
     static OkHttpClient okHttpClient = new OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
