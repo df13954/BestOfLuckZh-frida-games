@@ -1,7 +1,55 @@
 import {DebugUtil} from "../game/util/DebugUtil";
 
 export namespace NativeUtil {
+    export namespace unistd {
+        export enum syscall_asm {
+            __NR_openat = 56,
+            __NR_close = 57,
+            __NR_vhangup = 58,
+            __NR_pipe2 = 59,
+            __NR_quotactl = 60,
+            __NR_getdents64 = 61,
+            __NR3264_lseek = 62,
+            __NR_read = 63,
+            __NR_write = 64
+        }
 
+        export function get_syscall_call_ptr() {
+            let syscallPtr = Module.findExportByName("libc.so", "syscall")!;
+            return syscallPtr;
+        }
+
+        export function get_syscall_call_function(): NativeFunction<any, any> | null {
+            const syscallPtr = get_syscall_call_ptr();
+
+            let syscallFun = null;
+            if (Process.arch === "arm64") {
+                syscallFun = new NativeFunction(syscallPtr, "int", ["int", "pointer", "pointer", "pointer", "pointer", "pointer", "pointer"]);
+            } else if (Process.arch === "arm") {
+                syscallFun = new NativeFunction(syscallPtr, "int", ["int", "pointer", "pointer", "pointer"]);
+            }
+            return syscallFun;
+        }
+    }
+    export namespace stat {
+        //use
+       export const S_IRWXU = 0o700;
+       export const S_IRUSR = 0o0400;
+       export const S_IWUSR = 0o0200;
+       export const S_IXUSR = 0o0100;
+        //group
+       export const S_IRWXG = 0o0070;
+       export const S_IRGRP = 0o0040;
+       export const S_IWGRP = 0o0020;
+       export const S_IXGRP = 0o0010;
+       export const S_IRWXO = 0o0007;
+        //other
+       export const S_IROTH = 0o0004;
+       export const S_IWOTH = 0o0002;
+       export const S_IXOTH = 0o0001;
+       export const ACCESSPERMS = (S_IRWXU | S_IRWXG | S_IRWXO) /* 0777 */
+       export const DEFFILEMODE = (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH) /* 0666 */
+    }
     export namespace open_io {
         export enum fcntl {
             _O_RDONLY = 0x0000,
@@ -10,15 +58,18 @@ export namespace NativeUtil {
             _O_APPEND = 0x0008,
             _O_CREAT = 0x0100,
             _O_BINARY = 0x8000,
-            _O_ACCMODE = (_O_RDONLY | _O_WRONLY | _O_RDWR)
+            AT_FDCWD = -100,
+            _O_TRUNC = 0x0200,
+            _O_ACCMODE = (_O_RDONLY | _O_WRONLY | _O_RDWR),
+            creat = _O_CREAT | _O_TRUNC | _O_WRONLY
         }
 
-        export function open(path: string, flags: number = fcntl._O_ACCMODE): number {
+        export function open(path: string, flags: number = fcntl._O_ACCMODE, model: number = 0): number {
             let open_ptr = Module.findExportByName("libc.so", "open");
-            let open_fun = new NativeFunction(open_ptr!, "int", ["pointer", "int"]);
+            let open_fun = new NativeFunction(open_ptr!, "int", ["pointer", "int", "int"]);
 
             let path_ptr = Memory.allocUtf8String(path);
-            return open_fun(path_ptr, flags);
+            return open_fun(path_ptr, flags, model);
         }
 
         export function find_real_openat(): NativePointer | null {
@@ -37,8 +88,9 @@ export namespace NativeUtil {
             }
             return openatPtr;
         }
-        export function openat_fun(openatPtr:NativePointer):NativeFunction<number, [number,NativePointer,number]>{
-            const openat_fun =  new NativeFunction(openatPtr,"int",["int","pointer","int"]);
+
+        export function openat_fun(openatPtr: NativePointer): NativeFunction<number, [number, NativePointer, number]> {
+            const openat_fun = new NativeFunction(openatPtr, "int", ["int", "pointer", "int"]);
             return openat_fun;
         }
 

@@ -9,7 +9,6 @@ import {DebugUtil} from "../game/util/DebugUtil";
 import {NativeUtil} from "../basic/NativeUtil";
 
 export namespace FridaAnti {
-    import LOGE = DebugUtil.LOGE;
     import LOGD = DebugUtil.LOGD;
     const anti_features: string[] = ["frida", "/tmp"];
 
@@ -58,9 +57,10 @@ export namespace FridaAnti {
 
         // ------------anti
         //hook substring find
-        // hook_strstr_and_anti();
+        hook_strstr_and_anti();
 
         anti_open();
+        anti_syscall_openat();
         // anti_kill();
         // anti_read();
 
@@ -92,18 +92,53 @@ export namespace FridaAnti {
     }
 
 
-    function maps_handle(pathnamestr: string, openat_fun: NativeFunction<number, [number, NativePointer, number]>) {
-        DebugUtil.LOGD("anti_maps:" + pathnamestr);
+    function maps_handle(pathnamestr: string, tag = "") {
+        let io_redirect = true;
+
+        if (io_redirect) {
+            //1.创建文件
+            const maps_path = `/data/data/${NativeUtil.proc.self_cmdline()}/files/maps`;
+            const fd = NativeUtil.open_io.open(maps_path, NativeUtil.open_io.fcntl.creat, NativeUtil.stat.DEFFILEMODE);
+            NativeUtil.open_io.close(fd);
+
+            //2.读取 maps 原始内容 将处理内容 放入创建的文件
+            let maps_file = new File("/proc/self/maps", "r");
+            let to_maps_file = new File(maps_path, "w");
+            let content = maps_file.readText();
+            content.split("\n").map(v => {
+                if (v.indexOf("/tmp") === -1) {
+                    to_maps_file.write(v + "\n");
+                }
+            });
+            maps_file.close();
+            to_maps_file.close();
+
+            //3.io 重定向
+            DebugUtil.LOGD(tag + " anti_maps:" + pathnamestr + " io_redirect =>" + maps_path);
+            return NativeUtil.open_io.open(maps_path, NativeUtil.open_io.fcntl._O_RDONLY);
+        }
+        DebugUtil.LOGD(tag + " anti_maps:" + pathnamestr);
         return -1;
     }
 
-    function thread_handle(pathnamestr: string, openat_fun: NativeFunction<number, [number, NativePointer, number]>) {
-        DebugUtil.LOGD("anti_thread:" + pathnamestr);
+    function thread_handle(pathnamestr: string, tag = "") {
+        DebugUtil.LOGD(tag + " anti_thread:" + pathnamestr);
         return -1;
     }
 
-    function fd_handle(pathnamestr: string, openat_fun: NativeFunction<number, [number, NativePointer, number]>) {
-        DebugUtil.LOGD("anti_fd:" + pathnamestr);
+    function fd_handle(pathnamestr: string, tag = "") {
+        DebugUtil.LOGD(tag + " anti_fd:" + pathnamestr);
+        return -1;
+    }
+
+    function status_handle(pathnamestr: string, tag = "") {
+        DebugUtil.LOGD(tag + " anti_status:" + pathnamestr);
+        return -1;
+    }
+
+
+    function root_handle(pathnamestr: string, tag = "") {
+        DebugUtil.LOGD(tag + " anti_root:" + pathnamestr);
         return -1;
     }
 
@@ -121,15 +156,65 @@ export namespace FridaAnti {
             const pathnamestr = pathname.readCString();
             if (pathnamestr != null) {
                 if (pathnamestr.indexOf("proc") != -1) {
-                    if (pathnamestr.indexOf("maps") > 0) return maps_handle(pathnamestr, openat_fun);
-                    if (pathnamestr.indexOf("task") > 0) return thread_handle(pathnamestr, openat_fun);
-                    if (pathnamestr.indexOf("fd") > 0) return fd_handle(pathnamestr, openat_fun);
+                    DebugUtil.PrintStackTraceN(this.context);
+
+                    if (pathnamestr.indexOf("maps") > 0) return maps_handle(pathnamestr);
+                    if (pathnamestr.indexOf("task") > 0) return thread_handle(pathnamestr);
+                    if (pathnamestr.indexOf("status") > 0) return status_handle(pathnamestr);
+                    if (pathnamestr.indexOf("fd") > 0) return fd_handle(pathnamestr);
                 }
+                if (pathnamestr.indexOf("/su") != -1) return root_handle(pathnamestr);
             }
 
             return openat_fun(fd, pathname, flags);
 
         }, "int", ["int", "pointer", "int"]));
+    }
+
+    /**
+     * 64 位 arm 7个参数
+     * 32位 syscall 只有 4个参数
+     *
+     * @private
+     */
+    function anti_syscall_openat() {
+        let syscallPtr = NativeUtil.unistd.get_syscall_call_ptr();
+        let syscallFun = NativeUtil.unistd.get_syscall_call_function()!;
+
+        let openatPtr: NativePointer | null = NativeUtil.open_io.find_real_openat();
+        let openat_fun = NativeUtil.open_io.openat_fun(openatPtr!);
+
+        function handle_openat(args: NativePointer[], sysFun: NativeFunction<any, any>): number {
+            const pathnamestr = args[2].readCString()!;
+            if (pathnamestr.indexOf("proc") != -1) {
+                if (pathnamestr.indexOf("maps") > 0) return maps_handle(pathnamestr, "syscall");
+                if (pathnamestr.indexOf("task") > 0) return thread_handle(pathnamestr, "syscall");
+                if (pathnamestr.indexOf("status") > 0) return status_handle(pathnamestr, "syscall");
+                if (pathnamestr.indexOf("fd") > 0) return fd_handle(pathnamestr, "syscall");
+            }
+            if (pathnamestr.indexOf("/su") != -1) return root_handle(pathnamestr, "syscall");
+            return sysFun.apply(null, args);
+        }
+
+        if (Process.arch === "arm64") {
+            DebugUtil.LOGD("anti_syscall_openat start arm64...")
+            Interceptor.replace(syscallPtr, new NativeCallback(function (sysSign, arg1, arg2, arg3, arg4, arg5, arg6) {
+                if (sysSign === NativeUtil.unistd.syscall_asm.__NR_openat) {
+                    DebugUtil.LOGW("syscall openat arm64");
+                    return handle_openat([...arguments], syscallFun);
+                }
+                return syscallFun(sysSign, arg1, arg2, arg3, arg4, arg5, arg6);
+            }, "int", ["int", "pointer", "pointer", "pointer", "pointer", "pointer", "pointer"]))
+        } else {
+            DebugUtil.LOGD("anti_syscall_openat start arm32...")
+            Interceptor.replace(syscallPtr, new NativeCallback(function (sysSign, arg1, arg2, arg3) {
+                if (sysSign === NativeUtil.unistd.syscall_asm.__NR_openat) {
+                    DebugUtil.LOGW("syscall openat arm32");
+                    return handle_openat([...arguments], syscallFun);
+                }
+                return syscallFun(sysSign, arg1, arg2, arg3);
+            }, "int", ["int", "pointer", "pointer", "pointer"]))
+        }
     }
 
 

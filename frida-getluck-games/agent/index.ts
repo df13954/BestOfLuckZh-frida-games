@@ -21,10 +21,10 @@ function main() {
     //     }
     // })
 
-    // FridaAnti.start();
+    FridaAnti.start();
     // CocosCreatorJS.start()
     // Cocos2dxjs.start();
-    WebViewHook.start();
+    // WebViewHook.start();
 }
 
 /**
