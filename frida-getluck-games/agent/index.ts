@@ -5,6 +5,7 @@ import whenSoOpen = DebugUtil.whenSoOpen;
 import {CocosCreatorJS} from "./game/CocosCreatorJS";
 import {Cocos2dxjs} from "./game/Cocos2dxjs";
 import {FridaAnti} from "./anti/FridaAnti";
+import {WebViewHook} from "./android/https/WebViewHook";
 
 
 function main() {
@@ -20,9 +21,10 @@ function main() {
     //     }
     // })
 
-    FridaAnti.start();
+    // FridaAnti.start();
     // CocosCreatorJS.start()
     // Cocos2dxjs.start();
+    WebViewHook.start();
 }
 
 /**
@@ -34,6 +36,9 @@ setImmediate(() => {
 
 declare global {
     var start_hook_cocos2dxjs: () => void
+
+    var setWebContentsDebuggingEnabledInvoke: () => void
 }
 
 globalThis.start_hook_cocos2dxjs = Cocos2dxjs.start_hook_cocos2dxjs_for_javabridge;
+globalThis.setWebContentsDebuggingEnabledInvoke = WebViewHook.setWebContentsDebuggingEnabledInvoke;

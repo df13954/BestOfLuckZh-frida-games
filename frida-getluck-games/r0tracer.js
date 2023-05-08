@@ -251,7 +251,8 @@ function main() {
         */
         //A. 简易trace单个函数
         // traceClass("javax.crypto.Cipher")
-        traceClass("com.app.base.business.network.request.HttpAppRequest$login$4")
+        // let SysWebView = Java.use("io.dcloud.common.adapter.ui.webview.SysWebView");
+        traceClass("io.dcloud.common.adapter.ui.webview.SysWebView")
         //B. 黑白名单trace多个函数，第一个参数是白名单(包含关键字)，第二个参数是黑名单(不包含的关键字)
         // hook("javax.crypto.Cipher", "$");
         // hook("io.rong.debox.message")
