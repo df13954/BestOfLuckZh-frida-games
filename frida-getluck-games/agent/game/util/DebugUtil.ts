@@ -68,12 +68,12 @@ export namespace DebugUtil {
     export const PrintStackTraceN = (ctx: CpuContext, retText: boolean = false, slice: number = 24, reverse: boolean = false): string | void => {
         let tmpText: string = ""
         if (reverse) {
-            tmpText = Thread.backtrace(ctx, Backtracer.FUZZY)
+            tmpText = Thread.backtrace(ctx, Backtracer.ACCURATE)
                 .slice(0, slice)
                 .reverse()
                 .map(DebugSymbol.fromAddress).join("\n")
         } else {
-            tmpText = Thread.backtrace(ctx, Backtracer.FUZZY)
+            tmpText = Thread.backtrace(ctx, Backtracer.ACCURATE)
                 .slice(0, slice)
                 .map(DebugSymbol.fromAddress).join("\n")
         }

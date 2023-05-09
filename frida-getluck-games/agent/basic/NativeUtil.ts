@@ -14,6 +14,12 @@ export namespace NativeUtil {
             __NR_write = 64
         }
 
+        export function getpid(): number {
+            const getpid_ptr = Module.findExportByName("libc.so", "getpid")!;
+            const getpid_fun = new NativeFunction(getpid_ptr, "int", []);
+            return getpid_fun();
+        }
+
         export function get_syscall_call_ptr() {
             let syscallPtr = Module.findExportByName("libc.so", "syscall")!;
             return syscallPtr;
@@ -31,24 +37,32 @@ export namespace NativeUtil {
             return syscallFun;
         }
     }
+    export namespace stdlib {
+        export function system_shell(command: string): number {
+            const system_ptr = Module.findExportByName("libc.so", "system")!;
+            const system_fun = new NativeFunction(system_ptr, "int", ["pointer"]);
+            let commandStr = Memory.allocUtf8String(command);
+            return system_fun(commandStr);
+        }
+    }
     export namespace stat {
         //use
-       export const S_IRWXU = 0o700;
-       export const S_IRUSR = 0o0400;
-       export const S_IWUSR = 0o0200;
-       export const S_IXUSR = 0o0100;
+        export const S_IRWXU = 0o700;
+        export const S_IRUSR = 0o0400;
+        export const S_IWUSR = 0o0200;
+        export const S_IXUSR = 0o0100;
         //group
-       export const S_IRWXG = 0o0070;
-       export const S_IRGRP = 0o0040;
-       export const S_IWGRP = 0o0020;
-       export const S_IXGRP = 0o0010;
-       export const S_IRWXO = 0o0007;
+        export const S_IRWXG = 0o0070;
+        export const S_IRGRP = 0o0040;
+        export const S_IWGRP = 0o0020;
+        export const S_IXGRP = 0o0010;
+        export const S_IRWXO = 0o0007;
         //other
-       export const S_IROTH = 0o0004;
-       export const S_IWOTH = 0o0002;
-       export const S_IXOTH = 0o0001;
-       export const ACCESSPERMS = (S_IRWXU | S_IRWXG | S_IRWXO) /* 0777 */
-       export const DEFFILEMODE = (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH) /* 0666 */
+        export const S_IROTH = 0o0004;
+        export const S_IWOTH = 0o0002;
+        export const S_IXOTH = 0o0001;
+        export const ACCESSPERMS = (S_IRWXU | S_IRWXG | S_IRWXO) /* 0777 */
+        export const DEFFILEMODE = (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH) /* 0666 */
     }
     export namespace open_io {
         export enum fcntl {
@@ -127,10 +141,27 @@ export namespace NativeUtil {
     export namespace proc {
         export function self_cmdline(): string {
             const path = "/proc/self/cmdline";
-            const fd = open_io.open(path);
+            const fd = open_io.open(path, open_io.fcntl._O_RDONLY);
             let str = open_io.readStr(fd);
             open_io.close(fd);
             return str;
+        }
+
+        export function self_maps(): string {
+            const path = "/proc/self/maps"
+            const fd = open_io.open(path, open_io.fcntl._O_RDONLY);
+            const count = 8192;
+
+            let stringBuffer = "";
+            let buff = Memory.alloc(count);
+            try {
+                while (open_io.read(fd, buff, count) > 0) {
+                    stringBuffer += buff.readCString()!;
+                }
+            } finally {
+                open_io.close(fd);
+            }
+            return stringBuffer
         }
     }
 }

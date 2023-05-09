@@ -12,6 +12,7 @@ export namespace FridaAnti {
     import LOGD = DebugUtil.LOGD;
     const anti_features: string[] = ["frida", "/tmp"];
 
+    // const anti_features: string[] = ["frida"];
     function hasAnti(content: string): boolean {
         let lowerContent = content.toLowerCase();
         let anti_feature = anti_features.filter(anti_fea => lowerContent.indexOf(anti_fea) !== -1).pop();
@@ -57,10 +58,10 @@ export namespace FridaAnti {
 
         // ------------anti
         //hook substring find
-        hook_strstr_and_anti();
+        // hook_strstr_and_anti();
 
         anti_open();
-        anti_syscall_openat();
+        // anti_syscall_openat();
         // anti_kill();
         // anti_read();
 
@@ -96,25 +97,27 @@ export namespace FridaAnti {
         let io_redirect = true;
 
         if (io_redirect) {
+            const insure_path = `/data/data/${NativeUtil.proc.self_cmdline()}/files`;
+            const maps_path = `${insure_path}/maps`;
+            const content = NativeUtil.proc.self_maps();
+
             //1.创建文件
-            const maps_path = `/data/data/${NativeUtil.proc.self_cmdline()}/files/maps`;
-            const fd = NativeUtil.open_io.open(maps_path, NativeUtil.open_io.fcntl.creat, NativeUtil.stat.DEFFILEMODE);
-            NativeUtil.open_io.close(fd);
+            NativeUtil.stdlib.system_shell(`mkdir -p ${insure_path}`)
+
+            DebugUtil.LOGW("to_maps_file:" + maps_path);
+            DebugUtil.LOGD(tag + " anti_maps:" + pathnamestr + " io_redirect =>" + maps_path);
+
 
             //2.读取 maps 原始内容 将处理内容 放入创建的文件
-            let maps_file = new File("/proc/self/maps", "r");
             let to_maps_file = new File(maps_path, "w");
-            let content = maps_file.readText();
             content.split("\n").map(v => {
                 if (v.indexOf("/tmp") === -1) {
                     to_maps_file.write(v + "\n");
                 }
             });
-            maps_file.close();
             to_maps_file.close();
 
             //3.io 重定向
-            DebugUtil.LOGD(tag + " anti_maps:" + pathnamestr + " io_redirect =>" + maps_path);
             return NativeUtil.open_io.open(maps_path, NativeUtil.open_io.fcntl._O_RDONLY);
         }
         DebugUtil.LOGD(tag + " anti_maps:" + pathnamestr);
@@ -123,6 +126,7 @@ export namespace FridaAnti {
 
     function thread_handle(pathnamestr: string, tag = "") {
         DebugUtil.LOGD(tag + " anti_thread:" + pathnamestr);
+        NativeUtil.pthread.pthread_exit();
         return -1;
     }
 
@@ -133,6 +137,7 @@ export namespace FridaAnti {
 
     function status_handle(pathnamestr: string, tag = "") {
         DebugUtil.LOGD(tag + " anti_status:" + pathnamestr);
+        NativeUtil.pthread.pthread_exit();
         return -1;
     }
 
@@ -140,6 +145,20 @@ export namespace FridaAnti {
     function root_handle(pathnamestr: string, tag = "") {
         DebugUtil.LOGD(tag + " anti_root:" + pathnamestr);
         return -1;
+    }
+
+    function anti_for_openpath(pathname: NativePointer, defaultCall: Function) {
+        const pathnamestr = pathname.readCString();
+        if (pathnamestr != null) {
+            if (pathnamestr.indexOf("proc") != -1) {
+                if (pathnamestr.indexOf("maps") > 0) return maps_handle(pathnamestr);
+                if (pathnamestr.indexOf("task") > 0 && pathnamestr.indexOf("stat") > 0) return thread_handle(pathnamestr);
+                // if (pathnamestr.indexOf("status") > 0) return status_handle(pathnamestr);
+                if (pathnamestr.indexOf("fd") > 0) return fd_handle(pathnamestr);
+            }
+            if (pathnamestr.indexOf("/su") != -1) return root_handle(pathnamestr);
+        }
+        return defaultCall();
     }
 
     /**
@@ -153,20 +172,7 @@ export namespace FridaAnti {
         let openat_fun = NativeUtil.open_io.openat_fun(openatPtr!);
 
         Interceptor.replace(openatPtr!, new NativeCallback(function (fd, pathname, flags) {
-            const pathnamestr = pathname.readCString();
-            if (pathnamestr != null) {
-                if (pathnamestr.indexOf("proc") != -1) {
-                    DebugUtil.PrintStackTraceN(this.context);
-
-                    if (pathnamestr.indexOf("maps") > 0) return maps_handle(pathnamestr);
-                    if (pathnamestr.indexOf("task") > 0) return thread_handle(pathnamestr);
-                    if (pathnamestr.indexOf("status") > 0) return status_handle(pathnamestr);
-                    if (pathnamestr.indexOf("fd") > 0) return fd_handle(pathnamestr);
-                }
-                if (pathnamestr.indexOf("/su") != -1) return root_handle(pathnamestr);
-            }
-
-            return openat_fun(fd, pathname, flags);
+            return anti_for_openpath(pathname, () => openat_fun(fd, pathname, flags));
 
         }, "int", ["int", "pointer", "int"]));
     }
@@ -181,19 +187,8 @@ export namespace FridaAnti {
         let syscallPtr = NativeUtil.unistd.get_syscall_call_ptr();
         let syscallFun = NativeUtil.unistd.get_syscall_call_function()!;
 
-        let openatPtr: NativePointer | null = NativeUtil.open_io.find_real_openat();
-        let openat_fun = NativeUtil.open_io.openat_fun(openatPtr!);
-
         function handle_openat(args: NativePointer[], sysFun: NativeFunction<any, any>): number {
-            const pathnamestr = args[2].readCString()!;
-            if (pathnamestr.indexOf("proc") != -1) {
-                if (pathnamestr.indexOf("maps") > 0) return maps_handle(pathnamestr, "syscall");
-                if (pathnamestr.indexOf("task") > 0) return thread_handle(pathnamestr, "syscall");
-                if (pathnamestr.indexOf("status") > 0) return status_handle(pathnamestr, "syscall");
-                if (pathnamestr.indexOf("fd") > 0) return fd_handle(pathnamestr, "syscall");
-            }
-            if (pathnamestr.indexOf("/su") != -1) return root_handle(pathnamestr, "syscall");
-            return sysFun.apply(null, args);
+            return anti_for_openpath(args[2], () => sysFun.apply(null, args)); ;
         }
 
         if (Process.arch === "arm64") {
@@ -220,7 +215,7 @@ export namespace FridaAnti {
 
     //------------------------------------str cmp
     function hook_strcmp() {
-        const strcmpPtr: NativePointer = Module.findExportByName(null, "strcmp")!;
+        const strcmpPtr: NativePointer = Module.findExportByName("libc.so", "strcmp")!;
         Interceptor.attach(strcmpPtr, {
             onEnter: function (args) {
                 try {
@@ -245,7 +240,7 @@ export namespace FridaAnti {
     }
 
     function hook_strncmp() {
-        const strcmpPtr: NativePointer = Module.findExportByName(null, "strncmp")!;
+        const strcmpPtr: NativePointer = Module.findExportByName("libc.so", "strncmp")!;
         Interceptor.attach(strcmpPtr, {
             onEnter: function (args) {
                 try {
@@ -313,6 +308,7 @@ export namespace FridaAnti {
                         DebugUtil.LOGW("\n [strstr] args2:" + needle);
                         // DebugUtil.PrintStackTraceN(this.context);
                         DebugUtil.logL(`\n${DebugUtil.getLine(16)}${DebugUtil.getLine(16)}`)
+
                         //终止这个检测线程
                         NativeUtil.pthread.pthread_exit();
                         // Thread.sleep(99999);
